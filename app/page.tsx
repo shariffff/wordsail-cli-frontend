@@ -1,558 +1,730 @@
-"use client"
+'use client';
 
-import { useEffect, useState } from "react"
-import { Copy, Check } from "lucide-react"
+import { useEffect, useState } from 'react';
 
-export default function TerminalIDE() {
-  const [currentCommand, setCurrentCommand] = useState(0)
-  const [showCursor, setShowCursor] = useState(true)
-  const [matrixChars, setMatrixChars] = useState<string[]>([])
-  const [animatedBoxes, setAnimatedBoxes] = useState<boolean[]>([])
-  const [terminalLines, setTerminalLines] = useState<string[]>([])
-  const [currentTyping, setCurrentTyping] = useState("")
-  const [isExecuting, setIsExecuting] = useState(false)
-  const [executionStep, setExecutionStep] = useState(0)
-  const [copiedStates, setCopiedStates] = useState<{ [key: string]: boolean }>({})
+const customStyles = {
+	root: {
+		backgroundColor: '#EAEBF0',
+		minHeight: '100vh',
+		display: 'flex',
+		justifyContent: 'center',
+		fontFamily:
+			'-apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif',
+		color: '#1A1A1A',
+		lineHeight: '1.4',
+		WebkitFontSmoothing: 'antialiased',
+	},
+	container: {
+		width: '100%',
+		maxWidth: '1200px',
+		padding: '40px',
+		display: 'flex',
+		flexDirection: 'column',
+		gap: '60px',
+	},
+};
 
-  const copyToClipboard = async (text: string, key: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopiedStates((prev) => ({ ...prev, [key]: true }))
-      setTimeout(() => {
-        setCopiedStates((prev) => ({ ...prev, [key]: false }))
-      }, 2000)
-    } catch (err) {
-      console.error("Failed to copy text: ", err)
-    }
-  }
+const NavPill = ({
+	items,
+	activeIndex,
+	onItemClick,
+}: {
+	items: string[];
+	activeIndex: number;
+	onItemClick: (index: number) => void;
+}) => {
+	return (
+		<div
+			style={{
+				background: '#FFFFFF',
+				padding: '6px',
+				borderRadius: '999px',
+				display: 'inline-flex',
+				gap: '4px',
+				boxShadow: '0 4px 12px rgba(0,0,0,0.04)',
+			}}
+		>
+			{items.map((item, index) => (
+				<div
+					key={index}
+					onClick={() => onItemClick(index)}
+					style={{
+						padding: '10px 24px',
+						borderRadius: '999px',
+						fontSize: '15px',
+						fontWeight: '600',
+						color: activeIndex === index ? '#FFF' : '#8E8E93',
+						backgroundColor: activeIndex === index ? '#1A1A1A' : 'transparent',
+						boxShadow:
+							activeIndex === index ? '0 4px 10px rgba(0,0,0,0.2)' : 'none',
+						cursor: 'pointer',
+						transition: 'all 0.3s ease',
+					}}
+				>
+					{item}
+				</div>
+			))}
+		</div>
+	);
+};
 
-  const commands = [
-    "wordsail init",
-    "wordsail server provision",
-    "wordsail site create",
-    "wordsail domain ssl",
-  ]
+const StatusBadge = ({ text }: { text: string }) => {
+	return (
+		<div
+			style={{
+				background: '#F2F2F7',
+				padding: '6px 12px',
+				borderRadius: '999px',
+				fontSize: '12px',
+				fontWeight: '600',
+				color: '#1A1A1A',
+				display: 'flex',
+				alignItems: 'center',
+				gap: '6px',
+				width: 'fit-content',
+			}}
+		>
+			<div
+				style={{
+					width: '8px',
+					height: '8px',
+					backgroundColor: '#34C759',
+					borderRadius: '50%',
+				}}
+			></div>
+			<span>{text}</span>
+		</div>
+	);
+};
 
-  const terminalSequences = [
-    {
-      command: "wordsail init",
-      outputs: [
-        "Initializing WordSail...",
-        "Setting up configuration...",
-        "✅ WordSail ready!",
-      ],
-    },
-    {
-      command: "wordsail server provision",
-      outputs: [
-        "Connecting to server...",
-        "Installing Nginx, PHP 8.3, MariaDB...",
-        "Configuring UFW & Fail2ban...",
-        "✅ Server provisioned successfully!",
-      ],
-    },
-    {
-      command: "wordsail site create",
-      outputs: [
-        "Creating WordPress site...",
-        "Setting up database...",
-        "Creating admin user...",
-        "✅ WordPress site ready!",
-      ],
-    },
-    {
-      command: "wordsail domain ssl",
-      outputs: [
-        "Adding domain...",
-        "Provisioning SSL certificate...",
-        "Configuring DNS records...",
-        "✅ Domain live with HTTPS!",
-      ],
-    },
-  ]
+const ActionButton = ({ onClick }: { onClick: () => void }) => {
+	const [isHovered, setIsHovered] = useState(false);
 
+	return (
+		<button
+			onClick={onClick}
+			onMouseEnter={() => setIsHovered(true)}
+			onMouseLeave={() => setIsHovered(false)}
+			style={{
+				backgroundColor: '#000000',
+				color: 'white',
+				width: '64px',
+				height: '64px',
+				borderRadius: '50%',
+				border: 'none',
+				display: 'flex',
+				alignItems: 'center',
+				justifyContent: 'center',
+				cursor: 'pointer',
+				boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
+				transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+				transition: 'transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+				marginTop: '32px',
+			}}
+		>
+			<svg
+				viewBox="0 0 24 24"
+				fill="none"
+				style={{ width: '28px', height: '28px' }}
+			>
+				<path
+					d="M12 4v16m0 0l-6-6m6 6l6-6"
+					stroke="white"
+					strokeWidth="2.5"
+					strokeLinecap="round"
+					strokeLinejoin="round"
+				></path>
+			</svg>
+		</button>
+	);
+};
 
-  useEffect(() => {
-    const chars = "WORDSAIL0101NGINX PHP8.3█▓▒░▄▀■□▪▫".split("")
-    const newMatrixChars = Array.from({ length: 100 }, () => chars[Math.floor(Math.random() * chars.length)])
-    setMatrixChars(newMatrixChars)
+const CommandRow = ({
+	desc,
+	descSuffix,
+	code,
+}: {
+	desc: string;
+	descSuffix: string;
+	code: string;
+}) => {
+	const [isHovered, setIsHovered] = useState(false);
 
-    const interval = setInterval(() => {
-      setMatrixChars((prev) => prev.map(() => chars[Math.floor(Math.random() * chars.length)]))
-    }, 1500)
+	return (
+		<div
+			onMouseEnter={() => setIsHovered(true)}
+			onMouseLeave={() => setIsHovered(false)}
+			style={{
+				background: isHovered ? '#FFF' : '#F9F9FB',
+				padding: '20px 24px',
+				borderRadius: '24px',
+				display: 'flex',
+				justifyContent: 'space-between',
+				alignItems: 'center',
+				transform: isHovered ? 'scale(1.01)' : 'scale(1)',
+				boxShadow: isHovered ? '0 4px 12px rgba(0,0,0,0.03)' : 'none',
+				transition: 'all 0.2s ease',
+			}}
+		>
+			<div style={{ fontSize: '16px', fontWeight: '600', color: '#1A1A1A' }}>
+				{desc}{' '}
+				<span
+					style={{ color: '#8E8E93', fontWeight: '400', marginLeft: '4px' }}
+				>
+					{descSuffix}
+				</span>
+			</div>
+			<div
+				style={{
+					fontFamily: '"SF Mono", "Menlo", monospace',
+					fontSize: '15px',
+					color: '#1A1A1A',
+					fontWeight: '500',
+				}}
+			>
+				{code}
+			</div>
+		</div>
+	);
+};
 
-    return () => clearInterval(interval)
-  }, [])
+const TerminalCard = () => {
+	const commands = [
+		{ desc: 'Init', descSuffix: '/ Setup', code: 'wordsail init' },
+		{
+			desc: 'Server',
+			descSuffix: '/ Provision',
+			code: 'wordsail server provision',
+		},
+		{ desc: 'Site', descSuffix: '/ Create', code: 'wordsail site create' },
+		{ desc: 'Domain', descSuffix: '/ SSL', code: 'wordsail domain add --ssl' },
+	];
 
-  useEffect(() => {
-    const boxes = Array.from({ length: 6 }, () => Math.random() > 0.5)
-    setAnimatedBoxes(boxes)
+	return (
+		<div
+			style={{
+				background: '#FFFFFF',
+				borderRadius: '32px',
+				padding: '32px',
+				boxShadow: '0 10px 30px rgba(0,0,0,0.03)',
+				position: 'relative',
+				overflow: 'hidden',
+				minHeight: '400px',
+				display: 'flex',
+				flexDirection: 'column',
+				justifyContent: 'space-between',
+			}}
+		>
+			<div
+				style={{
+					display: 'flex',
+					justifyContent: 'space-between',
+					alignItems: 'center',
+					marginBottom: '32px',
+				}}
+			>
+				<span
+					style={{
+						fontSize: '14px',
+						fontWeight: '600',
+						color: '#8E8E93',
+						textTransform: 'uppercase',
+						letterSpacing: '0.5px',
+					}}
+				>
+					Session / ACTIVE
+				</span>
+				<span
+					style={{
+						fontSize: '14px',
+						fontWeight: '600',
+						color: '#8E8E93',
+						textTransform: 'uppercase',
+						letterSpacing: '0.5px',
+						opacity: '0.5',
+					}}
+				>
+					Bash
+				</span>
+			</div>
 
-    const interval = setInterval(() => {
-      setAnimatedBoxes((prev) => prev.map(() => Math.random() > 0.3))
-    }, 2000)
+			<div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+				{commands.map((cmd, index) => (
+					<CommandRow key={index} {...cmd} />
+				))}
+			</div>
+		</div>
+	);
+};
 
-    return () => clearInterval(interval)
-  }, [])
+const FeatureCard = ({
+	icon,
+	title,
+	description,
+	hasProgress,
+	progressValue,
+}: {
+	icon: React.ReactNode;
+	title: string;
+	description?: string;
+	hasProgress?: boolean;
+	progressValue?: string;
+}) => {
+	return (
+		<div
+			style={{
+				background: '#FFFFFF',
+				borderRadius: '24px',
+				padding: '24px',
+				minHeight: '180px',
+				display: 'flex',
+				flexDirection: 'column',
+				justifyContent: 'space-between',
+				boxShadow: '0 4px 10px rgba(0,0,0,0.02)',
+				position: 'relative',
+			}}
+		>
+			<div
+				style={{
+					width: '40px',
+					height: '40px',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'flex-start',
+				}}
+			>
+				{icon}
+			</div>
+			<div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+				{hasProgress ? (
+					<div
+						style={{
+							display: 'flex',
+							justifyContent: 'space-between',
+							width: '100%',
+						}}
+					>
+						<h3
+							style={{
+								fontSize: '20px',
+								fontWeight: '600',
+								marginBottom: '8px',
+							}}
+						>
+							{title}
+						</h3>
+						<span style={{ fontFamily: 'monospace', fontSize: '16px' }}>
+							{progressValue}
+						</span>
+					</div>
+				) : (
+					<h3
+						style={{ fontSize: '20px', fontWeight: '600', marginBottom: '8px' }}
+					>
+						{title}
+					</h3>
+				)}
+				{hasProgress ? (
+					<div
+						style={{
+							marginTop: '12px',
+							background: '#F2F2F7',
+							height: '6px',
+							borderRadius: '99px',
+							width: '100%',
+							position: 'relative',
+						}}
+					>
+						<div
+							style={{
+								background: '#1A1A1A',
+								width: '50%',
+								height: '100%',
+								borderRadius: '99px',
+								position: 'absolute',
+							}}
+						></div>
+						<div
+							style={{
+								width: '20px',
+								height: '20px',
+								background: '#FFF',
+								border: '3px solid #1A1A1A',
+								borderRadius: '50%',
+								position: 'absolute',
+								left: '50%',
+								top: '50%',
+								transform: 'translate(-50%, -50%)',
+								boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+							}}
+						></div>
+					</div>
+				) : (
+					<p
+						style={{
+							fontSize: '14px',
+							color: '#8E8E93',
+							fontWeight: '500',
+							maxWidth: '100%',
+						}}
+					>
+						{description}
+					</p>
+				)}
+			</div>
+		</div>
+	);
+};
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setShowCursor((prev) => !prev)
-    }, 500)
-    return () => clearInterval(interval)
-  }, [])
+export default function HomePage() {
+	const [activeNavIndex, setActiveNavIndex] = useState(0);
+	const [activeModeIndex, setActiveModeIndex] = useState(0);
+	const [isCopied, setIsCopied] = useState(false);
 
-  useEffect(() => {
-    const sequence = terminalSequences[currentCommand]
-    const timeouts: NodeJS.Timeout[] = []
+	const copyToClipboard = async (text: string) => {
+		try {
+			await navigator.clipboard.writeText(text);
+			setIsCopied(true);
+			setTimeout(() => setIsCopied(false), 2000);
+		} catch (err) {
+			console.error('Failed to copy:', err);
+		}
+	};
 
-    const runSequence = async () => {
-      setTerminalLines([])
-      setCurrentTyping("")
-      setIsExecuting(false)
-      setExecutionStep(0)
-
-      const command = sequence.command
-      for (let i = 0; i <= command.length; i++) {
-        timeouts.push(
-          setTimeout(() => {
-            setCurrentTyping(command.slice(0, i))
-          }, i * 50),
-        )
+	useEffect(() => {
+		const style = document.createElement('style');
+		style.textContent = `
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
       }
+      @media (max-width: 900px) {
+        .hero-section {
+          grid-template-columns: 1fr !important;
+        }
+        .feature-grid {
+          grid-template-columns: 1fr !important;
+        }
+        h1 {
+          font-size: 48px !important;
+        }
+      }
+    `;
+		document.head.appendChild(style);
+		return () => document.head.removeChild(style);
+	}, []);
 
-      timeouts.push(
-        setTimeout(
-          () => {
-            setIsExecuting(true)
-            setCurrentTyping("")
-            setTerminalLines((prev) => [...prev, `user@dev:~/project$ ${command}`])
-          },
-          command.length * 50 + 500,
-        ),
-      )
+	const handleDownload = () => {
+		console.log('Download clicked');
+	};
 
-      sequence.outputs.forEach((output, index) => {
-        timeouts.push(
-          setTimeout(
-            () => {
-              setExecutionStep(index + 1)
-              setTerminalLines((prev) => [...prev, output])
-            },
-            command.length * 50 + 1000 + index * 800,
-          ),
-        )
-      })
+	const handleNavClick = (index: number) => {
+		setActiveNavIndex(index);
+		if (index === 1) {
+			// Docs
+			window.open(
+				'https://github.com/shariffff/wordsail/tree/main/docs',
+				'_blank',
+			);
+		} else if (index === 2) {
+			// GitHub
+			window.open('https://github.com/shariffff/wordsail', '_blank');
+		}
+	};
 
-      timeouts.push(
-        setTimeout(
-          () => {
-            setCurrentCommand((prev) => (prev + 1) % commands.length)
-          },
-          command.length * 50 + 1000 + sequence.outputs.length * 800 + 2000,
-        ),
-      )
-    }
+	return (
+		<div style={customStyles.root as React.CSSProperties}>
+			<div style={customStyles.container as React.CSSProperties}>
+				<nav
+					style={{
+						display: 'flex',
+						justifyContent: 'space-between',
+						alignItems: 'center',
+					}}
+				>
+					<div
+						style={{
+							fontWeight: '700',
+							fontSize: '24px',
+							letterSpacing: '-1px',
+						}}
+					>
+						WordSail
+					</div>
+					<NavPill
+						items={['CLI', 'Docs', 'GitHub']}
+						activeIndex={activeNavIndex}
+						onItemClick={handleNavClick}
+					/>
+				</nav>
 
-    runSequence()
+				<div
+					className="hero-section"
+					style={{
+						display: 'grid',
+						gridTemplateColumns: '1fr 1fr',
+						gap: '40px',
+						alignItems: 'center',
+						marginTop: '40px',
+					}}
+				>
+					<div style={{ paddingRight: '40px' }}>
+						<div style={{ marginBottom: '24px' }}>
+							<StatusBadge text="v0.0.2 beta" />
+						</div>
 
-    return () => {
-      timeouts.forEach(clearTimeout)
-    }
-  }, [currentCommand])
+						<h1
+							style={{
+								fontSize: '84px',
+								fontWeight: '700',
+								letterSpacing: '-2px',
+								lineHeight: '0.95',
+								marginBottom: '24px',
+								color: '#1A1A1A',
+							}}
+						>
+							Ship WordPress
+							<br />
+							at lightspeed.
+						</h1>
 
-  return (
-    <div className="min-h-screen bg-black text-white font-sans overflow-hidden relative">
-      {/* ... existing nav code ... */}
-      <nav className="border-b border-gray-800 bg-gray-950/95 backdrop-blur-sm p-4 relative z-10 sticky top-0">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-3">
-            <div className="flex gap-2">
-              <div className="w-3 h-3 bg-green-500 hover:bg-green-400 transition-colors cursor-pointer"></div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-white font-bold text-lg">WordSail</span>
-            </div>
-          </div>
+						<p
+							style={{
+								fontSize: '18px',
+								color: '#8E8E93',
+								fontWeight: '500',
+								maxWidth: '500px',
+								marginBottom: '32px',
+							}}
+						>
+							A frictionless CLI for provisioning rock-solid LEMP stacks.
+							Powered by Ansible, designed for automation.
+						</p>
 
-          <div className="flex items-center gap-4">
-            <a
-              href="https://github.com/shariffff/wordsail"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-400 hover:text-white transition-colors"
-              title="WordSail on GitHub"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v 3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-              </svg>
-            </a>
+						<div style={{ marginBottom: '24px' }}>
+							<NavPill
+								items={['Interactive', 'Scripting', 'AI Agent']}
+								activeIndex={activeModeIndex}
+								onItemClick={setActiveModeIndex}
+							/>
+						</div>
 
-            <div className="hidden sm:flex items-center gap-2 text-gray-500 text-xs">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span>v0.0.2</span>
-            </div>
-          </div>
-        </div>
-      </nav>
+						<div
+							onClick={() =>
+								copyToClipboard(
+									'curl -fsSL https://cli.wordsail.com/install.sh | bash',
+								)
+							}
+							style={{
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'space-between',
+								background: '#FFFFFF',
+								border: '2px solid #F2F2F7',
+								borderRadius: '16px',
+								padding: '16px 20px',
+								cursor: 'pointer',
+								transition: 'all 0.2s ease',
+								maxWidth: '600px',
+							}}
+							onMouseEnter={(e) => {
+								e.currentTarget.style.borderColor = '#1A1A1A';
+								e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)';
+							}}
+							onMouseLeave={(e) => {
+								e.currentTarget.style.borderColor = '#F2F2F7';
+								e.currentTarget.style.boxShadow = 'none';
+							}}
+						>
+							<div
+								style={{
+									fontSize: '14px',
+									color: '#1A1A1A',
+									fontWeight: '600',
+									flex: 1,
+								}}
+							>
+								<span style={{ color: '#8E8E93', marginRight: '8px' }}>$</span>
+								curl -fsSL https://cli.wordsail.com/install.sh | bash
+							</div>
+							<div style={{ marginLeft: '16px', flexShrink: 0 }}>
+								{isCopied ? (
+									<svg
+										viewBox="0 0 24 24"
+										style={{
+											width: '20px',
+											height: '20px',
+											stroke: '#34C759',
+											strokeWidth: '2.5',
+											fill: 'none',
+										}}
+										strokeLinecap="round"
+										strokeLinejoin="round"
+									>
+										<polyline points="20 6 9 17 4 12"></polyline>
+									</svg>
+								) : (
+									<svg
+										viewBox="0 0 24 24"
+										style={{
+											width: '20px',
+											height: '20px',
+											stroke: '#8E8E93',
+											strokeWidth: '2',
+											fill: 'none',
+										}}
+										strokeLinecap="round"
+										strokeLinejoin="round"
+									>
+										<rect
+											x="9"
+											y="9"
+											width="13"
+											height="13"
+											rx="2"
+											ry="2"
+										></rect>
+										<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+									</svg>
+								)}
+							</div>
+						</div>
+					</div>
 
-      <div className="fixed inset-0 opacity-10 pointer-events-none">
-        <div className="grid grid-cols-25 gap-1 h-full">
-          {matrixChars.map((char, i) => (
-            <div key={i} className="text-gray-500 text-xs animate-pulse">
-              {char}
-            </div>
-          ))}
-        </div>
-      </div>
+					<TerminalCard />
+				</div>
 
-      <section className="relative px-6 py-20 lg:px-12">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <div className="mb-8">
-             <img src="data:image/png;base64,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" alt="WordSail" className="mx-auto" />
-            </div>
+				<div
+					className="feature-grid"
+					style={{
+						display: 'grid',
+						gridTemplateColumns: 'repeat(3, 1fr)',
+						gap: '24px',
+					}}
+				>
+					<FeatureCard
+						icon={
+							<svg
+								viewBox="0 0 24 24"
+								style={{
+									width: '24px',
+									height: '24px',
+									stroke: '#1A1A1A',
+									strokeWidth: '2',
+									fill: 'none',
+								}}
+								strokeLinecap="round"
+								strokeLinejoin="round"
+							>
+								<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+								<polyline points="14 2 14 8 20 8"></polyline>
+								<line x1="16" y1="13" x2="8" y2="13"></line>
+								<line x1="16" y1="17" x2="8" y2="17"></line>
+								<polyline points="10 9 9 9 8 9"></polyline>
+							</svg>
+						}
+						title="Ansible Core"
+						description="Steps are fully configurable yaml playbooks."
+					/>
 
-            <h1 className="text-2xl lg:text-7xl font-bold mb-8 leading-tight tracking-tight">
-              Self-host WordPress with <span className="text-green-400 animate-pulse">WordSail</span>.
-              <br />
-              Control from your{" "}
-              <span className="bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">terminal</span>.
-            </h1>
+					<FeatureCard
+						icon={
+							<svg
+								viewBox="0 0 24 24"
+								style={{
+									width: '24px',
+									height: '24px',
+									stroke: '#1A1A1A',
+									strokeWidth: '2',
+									fill: 'none',
+								}}
+								strokeLinecap="round"
+								strokeLinejoin="round"
+							>
+								<circle cx="12" cy="12" r="10"></circle>
+								<polyline points="12 6 12 12 16 14"></polyline>
+							</svg>
+						}
+						title="Speed"
+						hasProgress={true}
+						progressValue="50ms"
+					/>
 
-            <p className="text-base lg:text-2xl text-gray-300 leading-relaxed max-w-3xl mx-auto mb-8 font-light">
-              Automated server provisioning, WordPress site management, domain configuration, and SSL certificates.
-              Built for developers and agencies who want full control over their hosting infrastructure.
-            </p>
+					<FeatureCard
+						icon={
+							<svg
+								viewBox="0 0 24 24"
+								style={{
+									width: '24px',
+									height: '24px',
+									stroke: '#1A1A1A',
+									strokeWidth: '2',
+									fill: 'none',
+								}}
+								strokeLinecap="round"
+								strokeLinejoin="round"
+							>
+								<rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+								<line x1="8" y1="21" x2="16" y2="21"></line>
+								<line x1="12" y1="17" x2="12" y2="21"></line>
+							</svg>
+						}
+						title="Non-Interactive"
+						description="Headless mode for scripting."
+					/>
+				</div>
 
-            <div className="flex flex-col md:flex-row gap-6 justify-center items-center">
-              <div
-                className="group relative cursor-pointer w-full sm:w-auto"
-                onClick={() => copyToClipboard("curl -fsSL https://raw.githubusercontent.com/shariffff/wordsail/main/install.sh | bash", "hero-install")}
-              >
-                <div className="absolute inset-0 border border-gray-600 bg-gray-900/20 transition-all duration-300 group-hover:border-white group-hover:shadow-lg group-hover:shadow-white/20"></div>
-                <div className="relative border border-white bg-white text-black font-semibold px-4 sm:px-10 py-4 text-base sm:text-lg transition-all duration-300 group-hover:bg-gray-100 group-hover:text-black transform translate-x-1 translate-y-1 group-hover:translate-x-0 group-hover:translate-y-0 text-center">
-                  <div className="flex items-center justify-center gap-2 sm:gap-3">
-                    {copiedStates["hero-install"] ? (
-                      <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 flex-shrink-0" />
-                    ) : (
-                      <Copy className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600 flex-shrink-0" />
-                    )}
-                    <span className="text-gray-600 text-xs sm:text-sm flex-shrink-0">$</span>
-                    <span className="text-xs sm:text-sm truncate max-w-[200px] sm:max-w-none">curl -fsSL https://raw.githubusercontent.com/shariffff/wordsail/main/install.sh | bash</span>
-                  </div>
-                </div>
-              </div>
-
-              <a href="https://github.com/shariffff/wordsail/tree/main/docs" className="group relative cursor-pointer w-full sm:w-auto">
-
-                <div className="relative border-2 border border-gray-400 bg-transparent text-white font-semibold px-4 py-4 text-sm transition-all duration-300 group-hover:border-white group-hover:bg-gray-900/30 transform translate-x-1 translate-y-1 group-hover:translate-x-0 group-hover:translate-y-0">
-                  <div className="flex items-center gap-3">
-                    <span className="text-gray-400 font-normal">→</span>
-                    <span className="tracking-tight">View Docs</span>
-                  </div>
-                </div>
-              </a>
-            </div>
-          </div>
-
-          {/* ... existing terminal section ... */}
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-gray-950 border border-gray-700 shadow-2xl backdrop-blur-sm">
-              <div className="flex items-center justify-between px-6 py-4 bg-gray-900 border-b border-gray-700">
-                <div className="flex items-center gap-3">
-                  <div className="flex gap-2">
-
-
-                    <div className="w-3 h-3 bg-green-500 hover:bg-green-400 transition-colors cursor-pointer"></div>
-                  </div>
-                  <span className="text-gray-400 text-sm">wordsail@terminal</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-gray-500 text-xs">LIVE</span>
-                </div>
-              </div>
-
-              <div className="p-6 min-h-[300px] bg-black">
-                <div className="space-y-2 text-sm">
-                  {terminalLines.map((line, index) => (
-                    <div
-                      key={index}
-                      className={`${line.startsWith("user@dev") ? "text-white" : "text-gray-300"} ${line.includes("✅") || line.includes("✨") || line.includes("🎉") ? "text-green-400" : ""}`}
-                    >
-                      {line}
-                    </div>
-                  ))}
-
-                  {!isExecuting && (
-                    <div className="text-white">
-                      <span className="text-green-400">user@dev</span>
-                      <span className="text-gray-500">:</span>
-                      <span className="text-blue-400">~/project</span>
-                      <span className="text-white">$ </span>
-                      <span className="text-white">{currentTyping}</span>
-                      <span className={`text-white ${showCursor ? "opacity-100" : "opacity-0"} transition-opacity`}>
-                        █
-                      </span>
-                    </div>
-                  )}
-
-                  {isExecuting && (
-                    <div className="flex items-center gap-2 text-gray-400">
-                      <div className="flex gap-1">
-                        <div className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"></div>
-                        <div
-                          className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"
-                          style={{ animationDelay: "0.1s" }}
-                        ></div>
-                        <div
-                          className="w-1 h-1 bg-gray-400 rounded-full animate-bounce"
-                          style={{ animationDelay: "0.2s" }}
-                        ></div>
-                      </div>
-                      <span className="text-xs">Processing...</span>
-                    </div>
-                  )}
-                </div>
-
-
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ... existing integrations section ... */}
-      <section className="px-6 py-16 lg:px-12 border-t border-gray-800" id="commands">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl lg:text-5xl font-bold mb-6 tracking-tight">Key Commands</h2>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto font-light leading-relaxed">
-              Complete WordPress infrastructure management from the command line.
-            </p>
-          </div>
-
-          <div className="max-w-4xl mx-auto">
-            <div className="bg-gray-950 border border-gray-800 shadow-xl">
-              <div className="flex items-center justify-between px-6 py-3 bg-gray-900 border-b border-gray-700">
-                <div className="flex items-center gap-3">
-                  <div className="flex gap-2">
-
-
-                    <div className="w-3 h-3 bg-green-500"></div>
-                  </div>
-                  <span className="text-gray-400 text-sm">wordsail --help</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-gray-500 text-xs">READY</span>
-                </div>
-              </div>
-
-              <div className="p-6 bg-black">
-                <div className="text-sm text-gray-400 mb-6">$ wordsail --help</div>
-
-                <div className="space-y-3 mb-6">
-                  {[
-                    { name: "server provision", status: "✓", desc: "Setup Ubuntu 24.04" },
-                    { name: "site create", status: "✓", desc: "Create WordPress site" },
-                    { name: "domain add", status: "✓", desc: "Add domain & SSL" },
-                    { name: "domain ssl", status: "✓", desc: "Issue SSL cert" },
-                    { name: "server add", status: "✓", desc: "Manage servers" },
-                    { name: "site delete", status: "✓", desc: "Remove site" },
-                  ].map((cmd) => (
-                    <div
-                      key={cmd.name}
-                      className="flex items-center justify-between py-3 px-4 hover:bg-gray-900 cursor-pointer group transition-all duration-200 border border-transparent hover:border-gray-700"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-green-400 group-hover:text-white transition-colors w-4">
-                          {cmd.status}
-                        </span>
-                        <div className="flex flex-col">
-                          <span className="text-white group-hover:text-gray-200 transition-colors font-medium tracking-tight">{cmd.name}</span>
-                          <span className="text-gray-500 text-sm font-light leading-relaxed">{cmd.desc}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="pt-4 border-t border-gray-800">
-                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div className="text-sm text-gray-400">
-                      <div className="text-xs text-gray-500 space-y-1">
-                        <div className="font-mono">$ wordsail server provision</div>
-                        <div className="font-mono">$ wordsail site create</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span>6 Commands</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                        <span>Zero config</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 text-center">
-              <div className="inline-flex items-center gap-2 text-gray-400 text-sm">
-                <span className="text-green-400">●</span>
-                <span>Universal compatibility • Instant setup • Works everywhere</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-
-
-      <section className="px-6 py-20 lg:px-12 border-t border-gray-800 bg-gray-950/30" id="quickstart">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl lg:text-5xl font-bold mb-8 tracking-tight">Ready to get started?</h2>
-            <p className="text-xl text-gray-400 max-w-3xl mx-auto font-light leading-relaxed">
-              Set up a complete LEMP stack for WordPress hosting in four simple steps. No cloud vendor lock-in, full control over your infrastructure.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 mb-16">
-            <div className="group relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 transform rotate-1 group-hover:rotate-2 transition-transform duration-300"></div>
-              <div className="relative bg-black border border-gray-700 p-8 flex flex-col items-center text-center hover:border-white transition-all duration-300 group-hover:shadow-xl group-hover:shadow-white/10">
-                <div className="w-14 h-14 mx-auto mb-4 bg-gray-900 border border-gray-600 flex items-center justify-center group-hover:border-white transition-colors group-hover:bg-gray-800 text-lg font-bold text-white">
-                  1
-                </div>
-                <h3 className="text-xl font-semibold mb-4 text-white group-hover:text-gray-100 tracking-tight">Install WordSail</h3>
-                <p className="text-gray-400 group-hover:text-gray-300 text-base leading-relaxed mb-4">
-                  Download and install the WordSail CLI tool
-                </p>
-                <button
-                  className="text-sm bg-gray-900 border border-gray-700 p-3 hover:border-white transition-colors group-hover:bg-gray-800 w-full text-left cursor-pointer"
-                  onClick={() => copyToClipboard("curl -fsSL https://raw.githubusercontent.com/shariffff/wordsail/main/install.sh | bash", "step1-cmd")}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-300">$ curl ... | bash</span>
-                    {copiedStates["step1-cmd"] ? (
-                      <Check className="w-4 h-4 text-green-400" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-gray-500" />
-                    )}
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            <div className="group relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 transform -rotate-1 group-hover:-rotate-2 transition-transform duration-300"></div>
-              <div className="relative bg-black border border-gray-700 p-8 flex flex-col items-center text-center hover:border-white transition-all duration-300 group-hover:shadow-xl group-hover:shadow-white/10">
-                <div className="w-14 h-14 mx-auto mb-4 bg-gray-900 border border-gray-600 flex items-center justify-center group-hover:border-white transition-colors group-hover:bg-gray-800 text-lg font-bold text-white">
-                  2
-                </div>
-                <h3 className="text-xl font-semibold mb-4 text-white group-hover:text-gray-100 tracking-tight">Initialize Project</h3>
-                <p className="text-gray-400 group-hover:text-gray-300 text-base leading-relaxed mb-4">
-                  Set up WordSail configuration for your project
-                </p>
-                <button
-                  className="text-sm bg-gray-900 border border-gray-700 p-3 hover:border-white transition-colors group-hover:bg-gray-800 w-full text-left cursor-pointer"
-                  onClick={() => copyToClipboard("wordsail init", "step2-cmd")}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-300">$ wordsail init</span>
-                    {copiedStates["step2-cmd"] ? (
-                      <Check className="w-4 h-4 text-green-400" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-gray-500" />
-                    )}
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            <div className="group relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 transform rotate-1 group-hover:rotate-2 transition-transform duration-300"></div>
-              <div className="relative bg-black border border-gray-700 p-8 flex flex-col items-center text-center hover:border-white transition-all duration-300 group-hover:shadow-xl group-hover:shadow-white/10">
-                <div className="w-14 h-14 mx-auto mb-4 bg-gray-900 border border-gray-600 flex items-center justify-center group-hover:border-white transition-colors group-hover:bg-gray-800 text-lg font-bold text-white">
-                  3
-                </div>
-                <h3 className="text-xl font-semibold mb-4 text-white group-hover:text-gray-100 tracking-tight">Provision Server</h3>
-                <p className="text-gray-400 group-hover:text-gray-300 text-base leading-relaxed mb-4">
-                  Set up Ubuntu 24.04 with Nginx, PHP 8.3, and MariaDB
-                </p>
-                <button
-                  className="text-sm bg-gray-900 border border-gray-700 p-3 hover:border-white transition-colors group-hover:bg-gray-800 w-full text-left cursor-pointer"
-                  onClick={() => copyToClipboard("wordsail server provision", "step3-cmd")}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-300">$ wordsail server provision</span>
-                    {copiedStates["step3-cmd"] ? (
-                      <Check className="w-4 h-4 text-green-400" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-gray-500" />
-                    )}
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            <div className="group relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 transform -rotate-1 group-hover:-rotate-2 transition-transform duration-300"></div>
-              <div className="relative bg-black border border-gray-700 p-8 flex flex-col items-center text-center hover:border-white transition-all duration-300 group-hover:shadow-xl group-hover:shadow-white/10">
-                <div className="w-14 h-14 mx-auto mb-4 bg-gray-900 border border-gray-600 flex items-center justify-center group-hover:border-white transition-colors group-hover:bg-gray-800 text-lg font-bold text-white">
-                  4
-                </div>
-                <h3 className="text-xl font-semibold mb-4 text-white group-hover:text-gray-100 tracking-tight">Create Site</h3>
-                <p className="text-gray-400 group-hover:text-gray-300 text-base leading-relaxed mb-4">
-                  Deploy a new WordPress site
-                </p>
-                <button
-                  className="text-sm bg-gray-900 border border-gray-700 p-3 hover:border-white transition-colors group-hover:bg-gray-800 w-full text-left cursor-pointer"
-                  onClick={() => copyToClipboard("wordsail site create", "step4-cmd")}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-gray-300">$ wordsail site create</span>
-                    {copiedStates["step4-cmd"] ? (
-                      <Check className="w-4 h-4 text-green-400" />
-                    ) : (
-                      <Copy className="w-4 h-4 text-gray-500" />
-                    )}
-                  </div>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="text-center">
-            <a href="https://github.com/shariffff/wordsail/tree/main/docs" className="group relative cursor-pointer inline-block">
-              <div className="absolute inset-0 border-2 border-gray-600 bg-gray-900/20 transition-all duration-300 group-hover:border-white group-hover:shadow-lg group-hover:shadow-white/20"></div>
-              <div className="relative border-2 border-white bg-white text-black font-semibold px-12 py-4 text-lg transition-all duration-300 group-hover:bg-gray-100 transform translate-x-2 translate-y-2 group-hover:translate-x-0 group-hover:translate-y-0">
-                <div className="flex items-center justify-center gap-3">
-                  <span className="text-gray-600 font-normal">▶</span>
-                  <span className="tracking-tight">View Full Documentation</span>
-                </div>
-              </div>
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* ... existing footer ... */}
-      <footer className="border-t border-gray-800 px-6 py-12 lg:px-12 bg-gray-950">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center">
-            <div className="text-gray-600 text-lg mb-4"></div>
-
-          </div>
-        </div>
-      </footer>
-    </div>
-  )
+				<footer
+					style={{
+						display: 'flex',
+						justifyContent: 'space-between',
+						alignItems: 'center',
+						paddingTop: '40px',
+						borderTop: '1px solid rgba(0,0,0,0.05)',
+					}}
+				>
+					<div
+						style={{
+							fontSize: '14px',
+							fontWeight: '600',
+							color: '#1A1A1A',
+							textTransform: 'none',
+							letterSpacing: '0.5px',
+						}}
+					>
+						WordSail
+					</div>
+					<div style={{ display: 'flex', gap: '24px' }}>
+						<a
+							href="https://github.com/shariffff/wordsail/tree/main/docs"
+							target="_blank"
+							rel="noopener noreferrer"
+							style={{
+								fontSize: '14px',
+								color: '#8E8E93',
+								fontWeight: '500',
+								textDecoration: 'none',
+							}}
+						>
+							Documentation
+						</a>
+						<a
+							href="https://github.com/shariffff/wordsail"
+							target="_blank"
+							rel="noopener noreferrer"
+							style={{
+								fontSize: '14px',
+								color: '#8E8E93',
+								fontWeight: '500',
+								textDecoration: 'none',
+							}}
+						>
+							Github
+						</a>
+					</div>
+				</footer>
+			</div>
+		</div>
+	);
 }
