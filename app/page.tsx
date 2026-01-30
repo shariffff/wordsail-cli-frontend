@@ -97,48 +97,6 @@ const StatusBadge = ({ text }: { text: string }) => {
 	);
 };
 
-const ActionButton = ({ onClick }: { onClick: () => void }) => {
-	const [isHovered, setIsHovered] = useState(false);
-
-	return (
-		<button
-			onClick={onClick}
-			onMouseEnter={() => setIsHovered(true)}
-			onMouseLeave={() => setIsHovered(false)}
-			style={{
-				backgroundColor: '#000000',
-				color: 'white',
-				width: '64px',
-				height: '64px',
-				borderRadius: '50%',
-				border: 'none',
-				display: 'flex',
-				alignItems: 'center',
-				justifyContent: 'center',
-				cursor: 'pointer',
-				boxShadow: '0 8px 20px rgba(0,0,0,0.15)',
-				transform: isHovered ? 'scale(1.05)' : 'scale(1)',
-				transition: 'transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-				marginTop: '32px',
-			}}
-		>
-			<svg
-				viewBox="0 0 24 24"
-				fill="none"
-				style={{ width: '28px', height: '28px' }}
-			>
-				<path
-					d="M12 4v16m0 0l-6-6m6 6l6-6"
-					stroke="white"
-					strokeWidth="2.5"
-					strokeLinecap="round"
-					strokeLinejoin="round"
-				></path>
-			</svg>
-		</button>
-	);
-};
-
 const CommandRow = ({
 	desc,
 	descSuffix,
@@ -414,10 +372,6 @@ export default function HomePage() {
 		document.head.appendChild(style);
 		return () => document.head.removeChild(style);
 	}, []);
-
-	const handleDownload = () => {
-		console.log('Download clicked');
-	};
 
 	const handleNavClick = (index: number) => {
 		setActiveNavIndex(index);
