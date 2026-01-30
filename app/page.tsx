@@ -370,7 +370,9 @@ export default function HomePage() {
       }
     `;
 		document.head.appendChild(style);
-		return () => document.head.removeChild(style);
+		return () => {
+			document.head.removeChild(style);
+		};
 	}, []);
 
 	const handleNavClick = (index: number) => {
